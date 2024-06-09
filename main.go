@@ -49,7 +49,7 @@ func apiKeyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key != apiKey {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			http.Error(w, "Forbidden access to API", http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -380,8 +380,9 @@ func main() {
     r := mux.NewRouter()
 
     // API Key middleware applied to all routes
-    api := r.PathPrefix("/api").Subrouter()
-    api.Use(apiKeyMiddleware)
+    // api := r.PathPrefix("/api").Subrouter()
+    // api.Use(apiKeyMiddleware)
+    r.Use(apiKeyMiddleware)
 
     // GET requests
     // TODO: getCondoById and getListingById
