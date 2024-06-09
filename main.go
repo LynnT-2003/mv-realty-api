@@ -9,7 +9,11 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+    "github.com/gorilla/handlers"
+	"github.com/joho/godotenv"
 )
+
+var apiKey string
 
 type Condo struct {
 	// facilities should be arrays of strings
@@ -41,6 +45,17 @@ var (
 	condos   []Condo
 	listings []Listing
 )
+
+func apiKeyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.Header.Get("X-API-Key")
+		if key != apiKey {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func getCondos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -352,36 +367,59 @@ func init() {
 }
 
 func main() {
+    err := godotenv.Load()
+    if err != nil {
+        log.Fatal("Error loading .env file:", err)
+    }
 
-	// Initialize Router
-	r := mux.NewRouter()
+    apiKey = os.Getenv("API_KEY")
+    if apiKey == "" {
+        log.Fatal("API_KEY environment variable not set")
+    }
 
-	// GET requests
-	// TODO: getCondoById and getListingById
-	r.HandleFunc("/condos", getCondos).Methods("GET")
-	r.HandleFunc("/listings", getListings).Methods("GET")
-	r.HandleFunc("/condos/{condoId}/listings", getListingsByCondoId).Methods("GET")
-	r.HandleFunc("/condos/{condoId}/type/{type}", getListingsByCondoIdAndType).Methods("GET")
-	r.HandleFunc("/listings/status/{status}", getListingsByStatus).Methods("GET")
-	r.HandleFunc("/condos/{condoId}/listings/status/{status}", getListingsByCondoIdAndStatus).Methods("GET")
-	r.HandleFunc("/condos/{condoId}/listings/{listingId}", getListingsDetailFromListingsByCondoId).Methods("GET")
+    // Initialize Router
+    r := mux.NewRouter()
 
-	// POST request
-	r.HandleFunc("/listings", createListing).Methods("POST")
-	r.HandleFunc("/condos", createCondo).Methods("POST")
+    // API Key middleware applied to all routes
+    api := r.PathPrefix("/api").Subrouter()
+    api.Use(apiKeyMiddleware)
 
-	// TODO: PUT requests
+    // GET requests
+    // TODO: getCondoById and getListingById
+    r.HandleFunc("/condos", getCondos).Methods("GET")
+    r.HandleFunc("/listings", getListings).Methods("GET")
+    r.HandleFunc("/condos/{condoId}/listings", getListingsByCondoId).Methods("GET")
+    r.HandleFunc("/condos/{condoId}/type/{type}", getListingsByCondoIdAndType).Methods("GET")
+    r.HandleFunc("/listings/status/{status}", getListingsByStatus).Methods("GET")
+    r.HandleFunc("/condos/{condoId}/listings/status/{status}", getListingsByCondoIdAndStatus).Methods("GET")
+    r.HandleFunc("/condos/{condoId}/listings/{listingId}", getListingsDetailFromListingsByCondoId).Methods("GET")
 
-	// DELETE request
-	r.HandleFunc("/listings/{id}", deleteListing).Methods("DELETE")
-	r.HandleFunc("/condos/{condoId}", deleteCondo).Methods("DELETE")
-	// TOOD: When deleting a Condo, delete all listings related to the Condo
+    // POST request
+    r.HandleFunc("/listings", createListing).Methods("POST")
+    r.HandleFunc("/condos", createCondo).Methods("POST")
 
-	// Ports and Server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080" // Default port to 8080 if PORT environment variable is not set
-	}
-	fmt.Println("Server is running on port: ", port+"!")
-	log.Fatal(http.ListenAndServe(":"+port, r))
+    // TODO: PUT requests
+
+    // DELETE request
+    r.HandleFunc("/listings/{id}", deleteListing).Methods("DELETE")
+    r.HandleFunc("/condos/{condoId}", deleteCondo).Methods("DELETE")
+    // TODO: When deleting a Condo, delete all listings related to the Condo
+
+    // Enable CORS
+    cors := handlers.CORS(
+        handlers.AllowedOrigins([]string{"*"}),    // Allow requests from all origins
+        handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+        handlers.AllowedHeaders([]string{"Content-Type", "X-API-Key"}),
+    )
+
+    // Create a new handler with CORS middleware
+    handler := cors(r)
+
+    // Ports and Server
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8000" // Default port to 8000 if PORT environment variable is not set
+    }
+    fmt.Println("Server is running on port:", port)
+    log.Fatal(http.ListenAndServe(":"+port, handler))
 }
