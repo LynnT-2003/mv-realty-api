@@ -10,7 +10,6 @@ import (
 
 	"github.com/gorilla/mux"
     "github.com/gorilla/handlers"
-	"github.com/joho/godotenv"
 )
 
 var apiKey string
